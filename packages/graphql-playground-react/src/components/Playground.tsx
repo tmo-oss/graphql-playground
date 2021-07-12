@@ -44,6 +44,7 @@ import {
   setLinkCreator,
   schemaFetcher,
   setSubscriptionEndpoint,
+  setPlugins
 } from '../state/sessions/fetchingSagas'
 import { Session } from '../state/sessions/reducers'
 import { getWorkspaceId } from './Playground/util/getWorkspaceId'
@@ -51,6 +52,7 @@ import { getSettings, getSettingsString } from '../state/workspace/reducers'
 import { Backoff } from './Playground/util/fibonacci-backoff'
 import { debounce } from 'lodash'
 import { cachedPrintSchema } from './util'
+import { ApolloPlaygroundPlugin } from "../plugins/ApolloPlaygroundPlugin";
 
 export interface Response {
   resultID: string
@@ -92,6 +94,7 @@ export interface Props {
   ) => ApolloLink
   workspaceName?: string
   schema?: GraphQLSchema
+  plugins?: ApolloPlaygroundPlugin[]
 }
 
 export interface ReduxProps {
@@ -195,6 +198,7 @@ export class Playground extends React.PureComponent<Props & ReduxProps, State> {
     setLinkCreator(props.createApolloLink)
     this.getSchema()
     setSubscriptionEndpoint(props.subscriptionEndpoint)
+    setPlugins(props.plugins)
   }
 
   UNSAFE_componentWillMount() {
@@ -204,12 +208,25 @@ export class Playground extends React.PureComponent<Props & ReduxProps, State> {
     this.props.injectHeaders(this.props.headers, this.props.endpoint)
   }
 
-  componentDidMount() {
+  async componentDidMount() {
     if (this.initialIndex > -1) {
       this.setState({
         selectedSessionIndex: this.initialIndex,
       } as State)
     }
+
+    if (this.props.plugins) {
+      try {
+        await Promise.all(
+          this.props.plugins.map(
+            (plugin) => plugin.init && plugin.init()
+          ),
+        )
+      } catch (err) {
+        console.log('Error in executing plugins init method', err)
+      }
+    }
+
     this.mounted = true
   }
 

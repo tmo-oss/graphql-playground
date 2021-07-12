@@ -1,6 +1,7 @@
 import { filterXSS } from 'xss';
 
 import getLoadingMarkup from './get-loading-markup'
+import { processPluginFile, ApolloPlaygroundPlugin } from './ApolloPlaygroundPlugin'
 
 export interface MiddlewareOptions {
   endpoint?: string
@@ -12,6 +13,7 @@ export interface MiddlewareOptions {
   schema?: IntrospectionResult
   tabs?: Tab[]
   codeTheme?: EditorColours
+  plugins?: ApolloPlaygroundPlugin[]
 }
 
 export type CursorShape = 'line' | 'block' | 'underline'
@@ -199,14 +201,51 @@ export function renderPlaygroundPage(options: RenderPageOptions) {
         const root = document.getElementById('root');
         root.classList.add('playgroundIn');
         const configText = document.getElementById('playground-config').innerText
-        if(configText && configText.length) {
-          try {
-            GraphQLPlayground.init(root, JSON.parse(configText))
+
+        const config = JSON.parse(configText)
+        // stringify the plugins
+        config.plugins = [ ${((() => {
+          if (!extendedOptions.plugins) {
+            return ''
           }
-          catch(err) {
-            console.error("could not find config")
+          const pluginObjects = extendedOptions.plugins.map(
+            (plugin): string => {
+              if (plugin.filePath) {
+                return JSON.stringify({
+                  module: processPluginFile(plugin.filePath, plugin.buildOptions)
+                })
+              }
+              let pluginText = '{'
+              const keys = Object.keys(plugin)
+              keys.forEach(function (key, idx) {
+                pluginText += `${key}: ${plugin[key]}`
+                if (idx < keys.length - 1)
+                  pluginText += ','
+              })
+              pluginText += '}'
+              return pluginText
+            })
+          return pluginObjects.join(",")
+        })())}]
+
+        const pluginsPendingResolution = Promise.all(config.plugins.map(plugin => {
+          if (plugin.module) {
+            return import(plugin.module).then(obj => obj.default)
           }
-        }
+          return plugin
+        }))
+
+        pluginsPendingResolution.then(plugins => {
+          config.plugins = plugins;
+          if(configText && configText.length) {
+            try {
+              GraphQLPlayground.init(root, config)
+            }
+            catch(err) {
+              console.error("could not find config")
+            }
+          }
+        })
       })
     </script>
   </body>

@@ -28,6 +28,8 @@
     "definition": "dist/index.d.ts"
   },
   "dependencies": {
+    "esbuild": "^0.12.15",
+    "fast-json-stable-stringify": "^2.1.0",
     "xss": "^1.0.8"
   }
 }

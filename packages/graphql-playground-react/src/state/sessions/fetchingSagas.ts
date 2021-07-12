@@ -38,12 +38,18 @@ import { Session, ResponseRecord } from './reducers'
 import { addHistoryItem } from '../history/actions'
 import { safely } from '../../utils'
 import { set } from 'immutable'
+import { ApolloPlaygroundPlugin } from '../../plugins/ApolloPlaygroundPlugin';
 
 // tslint:disable
 let subscriptionEndpoint
+let plugins: ApolloPlaygroundPlugin[] | null
 
 export function setSubscriptionEndpoint(endpoint) {
   subscriptionEndpoint = endpoint
+}
+
+export function setPlugins(apolloPlugins: ApolloPlaygroundPlugin[]) {
+  plugins = apolloPlugins
 }
 
 export interface LinkCreatorProps {
@@ -138,6 +144,18 @@ function* runQuerySaga(action) {
     endpoint: session.endpoint,
     headers,
     credentials: settings['request.credentials'],
+  }
+
+  if (plugins) {
+    try {
+      yield Promise.all(
+        plugins.map(
+          (plugin) => plugin.preRequest && plugin.preRequest(request, lol)
+        ),
+      )
+    } catch (err) {
+      console.log('Error in executing plugins preRequest method', err)
+    }
   }
 
   const { link, subscriptionClient } = linkCreator(lol, subscriptionEndpoint)
